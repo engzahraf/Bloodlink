@@ -31,19 +31,25 @@ public final class BloodCompatibility {
     }
 
     /**
-     * Normalizes arbitrary user/database blood group strings (e.g. "O+", "o positive", "O_POS")
+     * Normalizes arbitrary user/database blood group strings (e.g. "O+", "o positive", "O_POSITIVE", "O_POS")
      * into the standard canonical token (e.g. "O_POS").
      */
     public static String normalize(String bloodGroup) {
         if (bloodGroup == null) {
             return "";
         }
-        return bloodGroup.trim().toUpperCase()
+        String clean = bloodGroup.trim().toUpperCase()
                 .replace(" ", "")
+                .replace("_POSITIVE", "_POS")
+                .replace("_NEGATIVE", "_NEG")
                 .replace("POSITIVE", "_POS")
                 .replace("NEGATIVE", "_NEG")
                 .replace("+", "_POS")
                 .replace("-", "_NEG");
+        while (clean.contains("__")) {
+            clean = clean.replace("__", "_");
+        }
+        return clean;
     }
 
     /**

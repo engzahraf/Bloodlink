@@ -188,6 +188,15 @@ public class Stage2ServiceIntegrationTest {
             Packet resBadRole = ProtocolCodec.readPacket(in);
             assertEquals("Registration with invalid role is BAD_REQUEST", ResponseStatus.BAD_REQUEST, resBadRole.getStatus());
 
+            // 2b. User tries to register with role HOSPITAL -> Must return BAD_REQUEST (not a valid registration role)
+            ProtocolPayload hospRegAttempt = new ProtocolPayload()
+                    .set("username", "hospital_user")
+                    .set("password", "pass1234")
+                    .set("role", "HOSPITAL");
+            ProtocolCodec.writePacket(out, Packet.createRequest(ProtocolAction.REGISTER, "reg-sec-02b", hospRegAttempt));
+            Packet resHospReg = ProtocolCodec.readPacket(in);
+            assertEquals("Registration with role HOSPITAL is BAD_REQUEST", ResponseStatus.BAD_REQUEST, resHospReg.getStatus());
+
             // 3. Donor registration without blood group
             ProtocolPayload donorNoBlood = new ProtocolPayload()
                     .set("username", "donor_noblood")
@@ -212,6 +221,19 @@ public class Stage2ServiceIntegrationTest {
             Packet resValid = ProtocolCodec.readPacket(in);
             assertEquals("Valid registration is SUCCESS", ResponseStatus.SUCCESS, resValid.getStatus());
             assertTrue("Assigned userId returned", resValid.getPayload().containsKey("userId"));
+
+            // 4b. Valid Recipient registration
+            ProtocolPayload validRecip = new ProtocolPayload()
+                    .set("username", "valid_recip_1")
+                    .set("password", "recipPass12")
+                    .set("role", "RECIPIENT")
+                    .set("fullName", "Rachel Green")
+                    .set("city", "Colombo")
+                    .set("phone", "0771122334");
+            ProtocolCodec.writePacket(out, Packet.createRequest(ProtocolAction.REGISTER, "reg-sec-04b", validRecip));
+            Packet resValidRecip = ProtocolCodec.readPacket(in);
+            assertEquals("Valid RECIPIENT registration is SUCCESS", ResponseStatus.SUCCESS, resValidRecip.getStatus());
+            assertTrue("Assigned recipient userId returned", resValidRecip.getPayload().containsKey("userId"));
 
             // 5. Duplicate registration
             ProtocolCodec.writePacket(out, Packet.createRequest(ProtocolAction.REGISTER, "reg-sec-05", validDonor));

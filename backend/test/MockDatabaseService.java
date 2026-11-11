@@ -32,10 +32,9 @@ public class MockDatabaseService implements IDatabaseService {
     }
 
     private void seedSampleData() {
-        // Seed default donors, hospital, recipient, and admin
+        // Seed default donors, recipient, and admin (agreed project roles)
         registerUserWithId("usr-alice", "alice", "alice123", "DONOR", "Alice Walker", "O_NEG", "Colombo", "0771234567", true);
         registerUserWithId("usr-bob", "bob", "bob123", "DONOR", "Bob Stone", "A_POS", "Kandy", "0772345678", true);
-        registerUserWithId("usr-hosp", "hospital1", "hosp123", "HOSPITAL", "City General Hospital", "", "Colombo", "0112345678", false);
         registerUserWithId("usr-charlie", "charlie", "char123", "RECIPIENT", "Charlie Smith", "O_POS", "Colombo", "0773456789", false);
         registerUserWithId("usr-admin", "admin", "admin123", "ADMIN", "System Administrator", "", "Colombo", "0119998877", false);
     }

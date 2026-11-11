@@ -231,18 +231,18 @@ public class BloodMatchingService implements IBloodMatchingService {
                     ResponseStatus.INTERNAL_ERROR, "Database service unavailable");
         }
 
-        // Authorization: Verify user is the requester, or a HOSPITAL, or an ADMIN
+        // Authorization: Verify user is the requester (owner) or an ADMIN
         List<Map<String, String>> existingList = databaseService.getBloodRequests(Map.of("bloodRequestId", bloodRequestId));
         if (existingList != null && !existingList.isEmpty()) {
             Map<String, String> existing = existingList.get(0);
             String requesterId = existing.get("requesterId");
             String role = client.getUserRole();
             boolean isOwner = requesterId != null && requesterId.equals(client.getAuthenticatedUserId());
-            boolean isStaffOrAdmin = UserRole.HOSPITAL.equalsIgnoreCase(role) || UserRole.ADMIN.equalsIgnoreCase(role);
+            boolean isAdmin = UserRole.ADMIN.equalsIgnoreCase(role);
 
-            if (!isOwner && !isStaffOrAdmin) {
+            if (!isOwner && !isAdmin) {
                 return Packet.createErrorResponse(ProtocolAction.UPDATE_BLOOD_REQUEST_STATUS, requestId,
-                        ResponseStatus.FORBIDDEN, "Only the requester, a hospital, or an admin can update blood request status");
+                        ResponseStatus.FORBIDDEN, "Only the requester or an admin can update blood request status");
             }
         }
 

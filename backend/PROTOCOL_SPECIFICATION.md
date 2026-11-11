@@ -35,16 +35,25 @@ This allows values to safely contain pipes (`|`), ampersands (`&`), equals signs
 
 ## 2. Roles & Permissions Matrix
 
-The system recognizes four roles:
+The system recognizes three roles defined in the project specification and database schema:
 1. `DONOR`: Blood donors. Can toggle availability, view blood requests, match, chat, and receive real-time donation alerts.
 2. `RECIPIENT`: Patients or patient representatives. Can publish blood requests, search compatible donors, and initiate direct chat.
-3. `HOSPITAL`: Hospital staff and blood banks. Can publish and update blood requests, search donors, and view profiles.
-4. `ADMIN`: System administrators.
+3. `ADMIN`: System administrators. Can manage users, view all profiles, update requests, and adjust availability.
 
 ### Role Registration Rules
-* Ordinary users can self-register as `DONOR`, `RECIPIENT`, or `HOSPITAL`.
+* Ordinary users can self-register as `DONOR` or `RECIPIENT`.
 * Self-registration with role `ADMIN` is strictly forbidden and rejected with status `FORBIDDEN`.
 * `DONOR` registrations must include a valid blood group (`O+`, `O-`, `A+`, `A-`, `B+`, `B-`, `AB+`, `AB-`).
+* Any registration attempt with `role=HOSPITAL` is rejected with `BAD_REQUEST` (`"Invalid role: HOSPITAL. Allowed roles for registration: DONOR, RECIPIENT"`).
+* The backend does NOT silently map `HOSPITAL` to `RECIPIENT` or `ADMIN`.
+
+### Unresolved Specification: Hospital Role
+* In the underlying SQLite database schema (`users` table), the role check constraint enforces `CHECK(role IN ('ADMIN', 'DONOR', 'RECIPIENT'))`.
+* If a dedicated `HOSPITAL` user role with specialized medical facility permissions is required in a future release, this requirement must be formally agreed upon across the team:
+  * Member 03 must update the SQLite DDL constraint, `UserRole` enum, and user/donor DAOs.
+  * Member 02 will then update backend protocol routing and authorization.
+  * Member 01 will implement the hospital-specific Swing screens.
+* In the current release, hospital and medical center names are recorded as request metadata (the `hospital` parameter in `CREATE_BLOOD_REQUEST`), and user accounts remain strictly within `DONOR`, `RECIPIENT`, and `ADMIN`.
 
 ---
 
@@ -137,7 +146,7 @@ Requires authentication.
   ```
 
 ### 3.9. `UPDATE_BLOOD_REQUEST_STATUS`
-Requires authentication. Allowed only for the creator of the request, `HOSPITAL`, or `ADMIN`.
+Requires authentication. Allowed only for the creator of the request (owner) or `ADMIN`.
 * **Request (`REQ`):**
   ```text
   REQ|UPDATE_BLOOD_REQUEST_STATUS|req_9||bloodRequestId=req-501&status=FULFILLED
@@ -277,7 +286,16 @@ public interface IDatabaseService {
 }
 ```
 
-### Requirements for Member 03:
-1. **Thread Safety & SQLite Concurrency:** SQLite is single-writer. In a multithreaded server where multiple `ClientHandler` threads access `IDatabaseService` simultaneously, synchronize write transactions (`registerUser`, `createBloodRequest`, `updateStatus`, `saveMessage`, `saveNotification`) or use a connection coordinator to prevent `SQLITE_BUSY` errors.
-2. **Canonical Blood Groups:** Canonical tokens used by backend are: `O_POS`, `O_NEG`, `A_POS`, `A_NEG`, `B_POS`, `B_NEG`, `AB_POS`, `AB_NEG`.
-3. **Password Security:** Credentials passed to `authenticate(username, password)` will be validated against your SQLite table. When hashing is finalized (e.g. SHA-256), compare the hashed input with the stored hash.
+### Requirements & Production Implementation Details:
+1. **Production Adapter (`SQLiteDatabaseService`):**
+   The backend implements `IDatabaseService` via `com.bloodlink.database.SQLiteDatabaseService`, directly orchestrating Member 03's DAOs (`UserDAO`, `DonorProfileDAO`, `BloodRequestDAO`, `DonationDAO`, `NotificationDAO`, `MessageDAO`).
+2. **Thread Safety & SQLite Concurrency:** SQLite is single-writer. Member 03's `DatabaseConnection` enables SQLite WAL journal mode (`PRAGMA journal_mode = WAL`), foreign keys (`PRAGMA foreign_keys = ON`), and a busy timeout (`PRAGMA busy_timeout = 5000`), allowing concurrent multi-threaded read/write across `ClientHandler` threads.
+3. **Canonical Blood Groups:** Canonical tokens used by backend are: `O_POS`, `O_NEG`, `A_POS`, `A_NEG`, `B_POS`, `B_NEG`, `AB_POS`, `AB_NEG`. Symbols (`O+`, `O-`, etc.) and database enum names (`O_POSITIVE`, `O_NEGATIVE`, etc.) are seamlessly normalized.
+4. **Password Security:** Handled via Member 03's PBKDF2 `PasswordHasher` (PBKDF2WithHmacSHA256 with 65,536 iterations). Stored format: `PBKDF2$<iterations>$<saltHex>$<hashHex>`. Password hashes are strictly stripped from all output profiles and network responses.
+5. **Database Initialization:** `DatabaseInitializer.initialize()` is called idempotently on server startup before accepting client connections.
+6. **Required Driver Dependency:** `database/lib/sqlite-jdbc-3.51.3.0.jar` must be included on the Java classpath (`-cp`).
+7. **Verification Suites:**
+   * `com.bloodlink.test.SQLiteIntegrationTest`: 15 test suites, 55 assertions (100% passing).
+   * `com.bloodlink.test.Stage1NetworkTest`: 17 assertions (100% passing).
+   * `com.bloodlink.test.Stage2ServiceIntegrationTest`: 70 assertions (100% passing).
+   * `com.bloodlink.database.DatabaseTestSuite`: 22 assertions (100% passing).

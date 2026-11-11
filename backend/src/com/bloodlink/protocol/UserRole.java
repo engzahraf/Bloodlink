@@ -1,13 +1,13 @@
 package com.bloodlink.protocol;
 
 /**
- * Standard user roles defined in the BloodLink system.
+ * Standard user roles recognized in the BloodLink system.
+ * Strictly aligned with the database schema: CHECK(role IN ('ADMIN', 'DONOR', 'RECIPIENT')).
  */
 public final class UserRole {
 
     public static final String DONOR = "DONOR";
     public static final String RECIPIENT = "RECIPIENT";
-    public static final String HOSPITAL = "HOSPITAL";
     public static final String ADMIN = "ADMIN";
 
     private UserRole() {
@@ -22,18 +22,19 @@ public final class UserRole {
             return false;
         }
         String r = role.trim().toUpperCase();
-        return DONOR.equals(r) || RECIPIENT.equals(r) || HOSPITAL.equals(r) || ADMIN.equals(r);
+        return DONOR.equals(r) || RECIPIENT.equals(r) || ADMIN.equals(r);
     }
 
     /**
      * Checks if a role is allowed for public self-registration.
-     * Ordinary users cannot register themselves as ADMIN.
+     * Ordinary users can only register as DONOR or RECIPIENT.
+     * System administrator accounts cannot be self-registered publicly.
      */
     public static boolean isSelfRegistrable(String role) {
         if (role == null) {
             return false;
         }
         String r = role.trim().toUpperCase();
-        return DONOR.equals(r) || RECIPIENT.equals(r) || HOSPITAL.equals(r);
+        return DONOR.equals(r) || RECIPIENT.equals(r);
     }
 }

@@ -104,7 +104,7 @@ public class AuthService implements IAuthService {
 
         if (!UserRole.isSelfRegistrable(requestedRole)) {
             return Packet.createErrorResponse(ProtocolAction.REGISTER, requestId,
-                    ResponseStatus.BAD_REQUEST, "Invalid role: " + requestedRole + ". Allowed roles: DONOR, RECIPIENT, HOSPITAL");
+                    ResponseStatus.BAD_REQUEST, "Invalid role: " + requestedRole + ". Allowed roles for registration: DONOR, RECIPIENT");
         }
 
         // 3. Donor-specific validation
@@ -181,10 +181,10 @@ public class AuthService implements IAuthService {
             targetUserId = client.getAuthenticatedUserId();
         }
 
-        // Authorization: only the user themselves, a HOSPITAL, or an ADMIN can view detailed profiles
+        // Authorization: only the user themselves or an ADMIN can view detailed profiles
         String currentRole = client.getUserRole();
         boolean isSelf = targetUserId.equals(client.getAuthenticatedUserId());
-        boolean isPrivileged = UserRole.HOSPITAL.equalsIgnoreCase(currentRole) || UserRole.ADMIN.equalsIgnoreCase(currentRole);
+        boolean isPrivileged = UserRole.ADMIN.equalsIgnoreCase(currentRole);
 
         if (!isSelf && !isPrivileged) {
             return Packet.createErrorResponse(ProtocolAction.GET_PROFILE, requestId,

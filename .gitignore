@@ -8,3 +8,8 @@ backend/verify-bin/
 # IDE files
 .vscode/
 .idea/
+
+# SQLite database files (generated runtime/test data)
+data/*.db
+data/*.db-wal
+data/*.db-shm
