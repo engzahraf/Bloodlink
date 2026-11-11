@@ -1,0 +1,30 @@
+# Java compiled bytecode
+*.class
+
+# Build and binary output directories
+bin/
+frontend/bin/
+backend/bin/
+database/bin/
+
+# Local tools & JDK runtime
+tools/
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Operating System files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# SQLite database files (runtime data)
+data/*.db
+data/*.db-wal
+data/*.db-shm
+*.db
+*.db-journal
