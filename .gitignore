@@ -2,6 +2,8 @@
 *.class
 
 # Generated build folders
+bin/
+verify-bin/
 backend/bin/
 backend/verify-bin/
 

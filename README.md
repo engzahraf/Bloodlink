@@ -22,28 +22,28 @@ The system is built as a collaborative multi-tier Java application:
 * **Database:** SQLite 3 with JDBC driver (`sqlite-jdbc-3.51.3.0.jar`)
 * **Security:** PBKDF2 with HMAC-SHA256 (65,536 iterations, 128-bit salt, 256-bit derived key)
 * **External Dependencies:** Zero external frameworks (No Spring Boot, Maven, Gradle, Gson, Jackson). Only the official SQLite JDBC driver JAR is required:
-  * Driver path: `backend/lib/sqlite-jdbc-3.51.3.0.jar`
+  * Driver path: `lib/sqlite-jdbc-3.51.3.0.jar`
 
 ---
 
 ## 3. Directory Structure
 
 ```text
-E:\Networking project\
-├── backend/
-│   ├── lib/                # sqlite-jdbc-3.51.3.0.jar
-│   ├── src/com/bloodlink/
-│   │   ├── database/       # SQLiteDatabaseService, DatabaseConnection, DatabaseInitializer, dao/, models/, enums/, exceptions/, security/
-│   │   ├── interfaces/     # IDatabaseService interface contract
-│   │   ├── protocol/       # Packet, ProtocolCodec, ProtocolAction, ResponseStatus
-│   │   ├── server/         # BloodLinkServer, ClientHandler, ClientManager, RequestDispatcher, ServerMain
-│   │   ├── services/       # AuthService, BloodMatchingService, BloodCompatibility, NotificationService, MessagingService
-│   │   └── util/           # ServerConfig, ServerLogger
-│   ├── test/               # Stage1NetworkTest, Stage2ServiceIntegrationTest, SQLiteIntegrationTest, MockDatabaseService, DatabaseTestSuite
-│   ├── docs/database/      # Database documentation, schema, ER diagram
-│   ├── run-database-tests.ps1
-│   └── PROTOCOL_SPECIFICATION.md
+Bloodlink/
+├── lib/                    # sqlite-jdbc-3.51.3.0.jar
+├── src/com/bloodlink/
+│   ├── database/           # SQLiteDatabaseService, DatabaseConnection, DatabaseInitializer, dao/, models/, enums/, exceptions/, security/
+│   ├── interfaces/         # IDatabaseService interface contract
+│   ├── protocol/           # Packet, ProtocolCodec, ProtocolAction, ResponseStatus
+│   ├── server/             # BloodLinkServer, ClientHandler, ClientManager, RequestDispatcher, ServerMain
+│   ├── services/           # AuthService, BloodMatchingService, BloodCompatibility, NotificationService, MessagingService
+│   └── util/               # ServerConfig, ServerLogger
+├── test/                   # Stage1NetworkTest, Stage2ServiceIntegrationTest, SQLiteIntegrationTest, MockDatabaseService, DatabaseTestSuite
+├── docs/database/          # Database documentation, schema, ER diagram
 ├── data/                   # SQLite database storage (bloodlink.db, test databases)
+├── run-database-tests.ps1  # Automated database test runner
+├── PROTOCOL_SPECIFICATION.md
+├── .gitignore
 └── README.md
 ```
 
@@ -51,15 +51,15 @@ E:\Networking project\
 
 ## 4. Compilation Instructions
 
-Compile all backend, database, and test suite classes into `backend/bin` using standard `javac`:
+Compile all source and test suite classes into `bin` using standard `javac`:
 
 ### Windows PowerShell:
 ```powershell
 # Create binary output directory
-if (-not (Test-Path "backend\bin")) { New-Item -ItemType Directory -Path "backend\bin" | Out-Null }
+if (-not (Test-Path "bin")) { New-Item -ItemType Directory -Path "bin" | Out-Null }
 
 # Compile all source and test files
-javac -Xlint:all -cp "backend\lib\sqlite-jdbc-3.51.3.0.jar" -d backend\bin -sourcepath "backend\src;backend\test" (Get-ChildItem -Recurse -Filter "*.java" backend\src, backend\test | ForEach-Object { $_.FullName })
+javac -Xlint:all -cp "lib\sqlite-jdbc-3.51.3.0.jar" -d bin -sourcepath "src;test" (Get-ChildItem -Recurse -Filter "*.java" src, test | ForEach-Object { $_.FullName })
 ```
 
 ---
@@ -70,7 +70,7 @@ The server initializes the SQLite database schema automatically on boot (`Databa
 
 ### Windows PowerShell:
 ```powershell
-java -cp "backend\bin;backend\lib\sqlite-jdbc-3.51.3.0.jar" com.bloodlink.server.ServerMain
+java -cp "bin;lib\sqlite-jdbc-3.51.3.0.jar" com.bloodlink.server.ServerMain
 ```
 
 ### Environment Configuration & Secure First-Admin Setup:
@@ -80,7 +80,7 @@ Admin seeding is **disabled by default** to prevent unauthorized default account
 $env:BLOODLINK_SEED_ADMIN="true"
 $env:BLOODLINK_ADMIN_USER="sysadmin@bloodlink.lk"
 $env:BLOODLINK_ADMIN_PASS="YourSecurePasswordHere#2026"
-java -cp "backend\bin;backend\lib\sqlite-jdbc-3.51.3.0.jar" com.bloodlink.server.ServerMain
+java -cp "bin;lib\sqlite-jdbc-3.51.3.0.jar" com.bloodlink.server.ServerMain
 ```
 
 | Environment Variable | Default Value | Description |
@@ -101,28 +101,28 @@ All tests run using standard Java (no JUnit required) and print structured statu
 ### 1. Real SQLite / JDBC Integration Test Suite
 Tests the complete end-to-end integration: database initialization, user registration, PBKDF2 hashing, login authentication, profile queries, blood requests, ABO/Rh donor matching, availability toggling, notification storage, chat history, thread concurrency, and live TCP socket transactions against SQLite:
 ```powershell
-java -cp "backend\bin;backend\lib\sqlite-jdbc-3.51.3.0.jar" com.bloodlink.test.SQLiteIntegrationTest
+java -cp "bin;lib\sqlite-jdbc-3.51.3.0.jar" com.bloodlink.test.SQLiteIntegrationTest
 ```
 *(Result: 15 suites, 55/55 assertions passed - 100%)*
 
 ### 2. Stage 1 Networking & Framing Test Suite
 Tests TCP server socket binding, delimiter and URL-encoding safety, simultaneous multi-client connection handling, framing validation, malformed packet rejections, and graceful server shutdown:
 ```powershell
-java -cp "backend\bin;backend\lib\sqlite-jdbc-3.51.3.0.jar" com.bloodlink.test.Stage1NetworkTest
+java -cp "bin;lib\sqlite-jdbc-3.51.3.0.jar" com.bloodlink.test.Stage1NetworkTest
 ```
 *(Result: 17/17 assertions passed - 100%)*
 
 ### 3. Stage 2 Service & Protocol Security Test Suite
 Tests all 8 ABO/Rh blood compatibility combinations, role-based authorization rules, prevention of unauthenticated access, hospital and donor permissions, real-time alert dispatching, and offline direct message queueing:
 ```powershell
-java -cp "backend\bin;backend\lib\sqlite-jdbc-3.51.3.0.jar" com.bloodlink.test.Stage2ServiceIntegrationTest
+java -cp "bin;lib\sqlite-jdbc-3.51.3.0.jar" com.bloodlink.test.Stage2ServiceIntegrationTest
 ```
 *(Result: 70/70 assertions passed - 100%)*
 
 ### 4. Database Test Suite
 Tests standalone DAO operations, relational integrity, foreign key cascades, SQL injection prevention, transaction rollbacks, and concurrent thread-safety:
 ```powershell
-java -cp "backend\bin;backend\lib\sqlite-jdbc-3.51.3.0.jar" com.bloodlink.database.DatabaseTestSuite
+java -cp "bin;lib\sqlite-jdbc-3.51.3.0.jar" com.bloodlink.database.DatabaseTestSuite
 ```
 *(Result: 22/22 tests passed - 100%)*
 
