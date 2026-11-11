@@ -1,0 +1,10 @@
+# Java compiled files
+*.class
+
+# Generated build folders
+backend/bin/
+backend/verify-bin/
+
+# IDE files
+.vscode/
+.idea/
