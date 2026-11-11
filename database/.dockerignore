@@ -1,0 +1,18 @@
+# Database files and runtime directories
+data/
+*.db
+*.db-wal
+*.db-shm
+*.log
+
+# Build outputs
+bin/
+target/
+
+# IDE and OS files
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+

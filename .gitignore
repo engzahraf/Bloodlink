@@ -1,0 +1,19 @@
+# Runtime databases
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Build output
+database/bin/
+bin/
+target/
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
