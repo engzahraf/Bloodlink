@@ -1,6 +1,6 @@
 # Run BloodLink Database Test Suite
 Write-Host "Compiling BloodLink Database Module..." -ForegroundColor Cyan
-$sources = (Get-ChildItem -Path "$PSScriptRoot\src" -Recurse -Filter "*.java").FullName
+$sources = (Get-ChildItem -Path "$PSScriptRoot\src", "$PSScriptRoot\test" -Recurse -Filter "*.java").FullName
 New-Item -ItemType Directory -Force -Path "$PSScriptRoot\bin" | Out-Null
 javac -cp "$PSScriptRoot\lib\*" -d "$PSScriptRoot\bin" $sources
 
