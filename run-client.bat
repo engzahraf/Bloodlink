@@ -25,5 +25,5 @@ if %ERRORLEVEL% NEQ 0 (
 )
 
 echo Starting BloodLink Desktop Client...
-"%JAVA_CMD%" -cp "%~dp0bin" com.bloodlink.client.Main %*
+"%JAVA_CMD%" -cp "%~dp0bin;%~dp0lib\sqlite-jdbc-3.51.3.0.jar" com.bloodlink.client.Main %*
 endlocal
