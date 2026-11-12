@@ -20,6 +20,21 @@ public final class ProtocolAction {
     public static final String MATCH_DONORS = "MATCH_DONORS";
     public static final String UPDATE_DONOR_AVAILABILITY = "UPDATE_DONOR_AVAILABILITY";
 
+    // Donor response actions
+    public static final String ACCEPT_REQUEST = "ACCEPT_REQUEST";
+    public static final String REJECT_REQUEST = "REJECT_REQUEST";
+    public static final String RESPOND_TO_REQUEST = "RESPOND_TO_REQUEST";
+    public static final String GET_REQUEST_RESPONSES = "GET_REQUEST_RESPONSES";
+    public static final String GET_DONOR_RESPONSES = "GET_DONOR_RESPONSES";
+
+    // Administrative control actions
+    public static final String ADMIN_GET_USERS = "ADMIN_GET_USERS";
+    public static final String ADMIN_BLOCK_USER = "ADMIN_BLOCK_USER";
+    public static final String ADMIN_UNBLOCK_USER = "ADMIN_UNBLOCK_USER";
+    public static final String ADMIN_DELETE_USER = "ADMIN_DELETE_USER";
+    public static final String ADMIN_CANCEL_REQUEST = "ADMIN_CANCEL_REQUEST";
+    public static final String ADMIN_GET_STATS = "ADMIN_GET_STATS";
+
     // Real-time notifications and alerts
     public static final String NOTIFICATION = "NOTIFICATION";
     public static final String URGENT_ALERT = "URGENT_ALERT";

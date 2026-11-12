@@ -11,6 +11,7 @@ import com.bloodlink.server.ClientManager;
 import com.bloodlink.util.ServerLogger;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,7 +43,7 @@ public class BloodMatchingService implements IBloodMatchingService {
         }
 
         String rawBloodGroup = payload.get("bloodGroup");
-        int unitsNeeded = payload.getInt("unitsNeeded", 1);
+        int unitsNeeded = payload.containsKey("unitsNeeded") ? payload.getInt("unitsNeeded", 1) : payload.getInt("units", 1);
         String hospital = payload.get("hospital");
         String city = payload.get("city");
         String urgency = payload.getOrDefault("urgency", "NORMAL").trim().toUpperCase();
@@ -172,7 +173,8 @@ public class BloodMatchingService implements IBloodMatchingService {
         ProtocolPayload resPayload = new ProtocolPayload()
                 .set("recipientBloodGroup", normRecipient)
                 .set("matchCount", donorRecords.size())
-                .setList("donors", donorRecords);
+                .setList("donors", donorRecords)
+                .setList("donors_list", donorRecords);
 
         ServerLogger.info("Donor match query for %s returned %d compatible donors", normRecipient, donorRecords.size());
         return Packet.createSuccessResponse(ProtocolAction.MATCH_DONORS, requestId, resPayload);
@@ -200,7 +202,8 @@ public class BloodMatchingService implements IBloodMatchingService {
 
         ProtocolPayload resPayload = new ProtocolPayload()
                 .set("count", requestRecords.size())
-                .setList("requests", requestRecords);
+                .setList("requests", requestRecords)
+                .setList("requests_list", requestRecords);
 
         return Packet.createSuccessResponse(ProtocolAction.GET_BLOOD_REQUESTS, requestId, resPayload);
     }
@@ -213,6 +216,9 @@ public class BloodMatchingService implements IBloodMatchingService {
         }
 
         String bloodRequestId = payload.get("bloodRequestId");
+        if (bloodRequestId == null || bloodRequestId.trim().isEmpty()) {
+            bloodRequestId = payload.get("requestId");
+        }
         String newStatus = payload.get("status");
 
         if (bloodRequestId == null || bloodRequestId.trim().isEmpty() || newStatus == null || newStatus.trim().isEmpty()) {
@@ -308,5 +314,315 @@ public class BloodMatchingService implements IBloodMatchingService {
         ServerLogger.info("Donor %s availability updated to %b by %s",
                 userIdToUpdate, isAvailable, client.getAuthenticatedUserId());
         return Packet.createSuccessResponse(ProtocolAction.UPDATE_DONOR_AVAILABILITY, requestId, resPayload);
+    }
+
+    // =========================================================================
+    // Donor Accept / Reject / Response Handlers
+    // =========================================================================
+
+    @Override
+    public Packet handleAcceptRequest(ClientHandler client, String requestId, ProtocolPayload payload) {
+        if (!client.isAuthenticated()) {
+            return Packet.createErrorResponse(ProtocolAction.ACCEPT_REQUEST, requestId,
+                    ResponseStatus.UNAUTHORIZED, "Authentication required to accept blood request");
+        }
+
+        String bloodRequestId = payload.get("bloodRequestId");
+        if (bloodRequestId == null || bloodRequestId.trim().isEmpty()) {
+            bloodRequestId = payload.get("requestId");
+        }
+        if (bloodRequestId == null || bloodRequestId.trim().isEmpty()) {
+            return Packet.createErrorResponse(ProtocolAction.ACCEPT_REQUEST, requestId,
+                    ResponseStatus.BAD_REQUEST, "Parameter 'bloodRequestId' is required");
+        }
+
+        String donorId = client.getAuthenticatedUserId();
+        String notes = payload.getOrDefault("notes", "I am available to donate blood");
+
+        // Verify if donor has already accepted
+        if (databaseService != null) {
+            Map<String, String> existing = databaseService.getDonorResponse(bloodRequestId, donorId);
+            if (existing != null && "ACCEPTED".equalsIgnoreCase(existing.get("status"))) {
+                return Packet.createErrorResponse(ProtocolAction.ACCEPT_REQUEST, requestId,
+                        ResponseStatus.BAD_REQUEST, "You have already accepted this blood request.");
+            }
+        }
+
+        Map<String, String> recorded = (databaseService != null)
+                ? databaseService.recordDonorResponse(bloodRequestId, donorId, "ACCEPTED", notes)
+                : null;
+
+        if (recorded == null) {
+            return Packet.createErrorResponse(ProtocolAction.ACCEPT_REQUEST, requestId,
+                    ResponseStatus.INTERNAL_ERROR, "Failed to record blood request acceptance");
+        }
+
+        String recipientId = recorded.get("recipientId");
+        String donorName = recorded.getOrDefault("donorName", "A donor");
+        String donorBg = recorded.getOrDefault("bloodGroupSymbol", recorded.getOrDefault("bloodGroup", ""));
+
+        // Notify recipient (real-time push if online, saved in DB for offline)
+        if (notificationService != null && recipientId != null && !recipientId.isEmpty()) {
+            String notifMsg = "Donor " + donorName + (donorBg.isEmpty() ? "" : " (" + donorBg + ")") +
+                    " accepted your blood request #" + bloodRequestId + ".";
+            notificationService.sendNotification(recipientId, "Donor Accepted Request", notifMsg, "HIGH");
+        }
+
+        ProtocolPayload resPayload = new ProtocolPayload(recorded)
+                .set("bloodRequestId", bloodRequestId)
+                .set("status", "ACCEPTED")
+                .set("message", "Blood request accepted successfully");
+
+        ServerLogger.info("Donor %s (%s) accepted blood request %s for recipient %s",
+                donorName, donorId, bloodRequestId, recipientId);
+
+        return Packet.createSuccessResponse(ProtocolAction.ACCEPT_REQUEST, requestId, resPayload);
+    }
+
+    @Override
+    public Packet handleRejectRequest(ClientHandler client, String requestId, ProtocolPayload payload) {
+        if (!client.isAuthenticated()) {
+            return Packet.createErrorResponse(ProtocolAction.REJECT_REQUEST, requestId,
+                    ResponseStatus.UNAUTHORIZED, "Authentication required to reject blood request");
+        }
+
+        String bloodRequestId = payload.get("bloodRequestId");
+        if (bloodRequestId == null || bloodRequestId.trim().isEmpty()) {
+            bloodRequestId = payload.get("requestId");
+        }
+        if (bloodRequestId == null || bloodRequestId.trim().isEmpty()) {
+            return Packet.createErrorResponse(ProtocolAction.REJECT_REQUEST, requestId,
+                    ResponseStatus.BAD_REQUEST, "Parameter 'bloodRequestId' is required");
+        }
+
+        String donorId = client.getAuthenticatedUserId();
+        String notes = payload.getOrDefault("notes", "Unable to donate at this time");
+
+        Map<String, String> recorded = (databaseService != null)
+                ? databaseService.recordDonorResponse(bloodRequestId, donorId, "REJECTED", notes)
+                : null;
+
+        if (recorded == null) {
+            return Packet.createErrorResponse(ProtocolAction.REJECT_REQUEST, requestId,
+                    ResponseStatus.INTERNAL_ERROR, "Failed to record blood request rejection");
+        }
+
+        String recipientId = recorded.get("recipientId");
+        String donorName = recorded.getOrDefault("donorName", "A donor");
+
+        if (notificationService != null && recipientId != null && !recipientId.isEmpty()) {
+            String notifMsg = "Donor " + donorName + " rejected your blood request #" + bloodRequestId + ".";
+            notificationService.sendNotification(recipientId, "Donor Rejected Request", notifMsg, "NORMAL");
+        }
+
+        ProtocolPayload resPayload = new ProtocolPayload(recorded)
+                .set("bloodRequestId", bloodRequestId)
+                .set("status", "REJECTED")
+                .set("message", "Blood request rejected");
+
+        ServerLogger.info("Donor %s (%s) rejected blood request %s", donorName, donorId, bloodRequestId);
+
+        return Packet.createSuccessResponse(ProtocolAction.REJECT_REQUEST, requestId, resPayload);
+    }
+
+    @Override
+    public Packet handleGetRequestResponses(ClientHandler client, String requestId, ProtocolPayload payload) {
+        if (!client.isAuthenticated()) {
+            return Packet.createErrorResponse(ProtocolAction.GET_REQUEST_RESPONSES, requestId,
+                    ResponseStatus.UNAUTHORIZED, "Authentication required to view donor responses");
+        }
+
+        String bloodRequestId = payload.get("bloodRequestId");
+        if (bloodRequestId == null || bloodRequestId.trim().isEmpty()) {
+            bloodRequestId = payload.get("requestId");
+        }
+
+        List<Map<String, String>> responses;
+        if (bloodRequestId != null && !bloodRequestId.trim().isEmpty()) {
+            responses = (databaseService != null)
+                    ? databaseService.getDonorResponsesForRequest(bloodRequestId.trim())
+                    : Collections.emptyList();
+        } else {
+            String recipientId = payload.get("recipientId");
+            if (recipientId == null || recipientId.trim().isEmpty()) {
+                recipientId = client.getAuthenticatedUserId();
+            }
+            responses = (databaseService != null)
+                    ? databaseService.getDonorResponsesForRecipient(recipientId)
+                    : Collections.emptyList();
+        }
+
+        List<String> records = new ArrayList<>();
+        for (Map<String, String> r : responses) {
+            ProtocolPayload rec = new ProtocolPayload(r);
+            records.add(rec.serialize());
+        }
+
+        ProtocolPayload resPayload = new ProtocolPayload()
+                .set("count", records.size())
+                .setList("responses", records)
+                .setList("responses_list", records);
+
+        return Packet.createSuccessResponse(ProtocolAction.GET_REQUEST_RESPONSES, requestId, resPayload);
+    }
+
+    @Override
+    public Packet handleGetDonorResponses(ClientHandler client, String requestId, ProtocolPayload payload) {
+        if (!client.isAuthenticated()) {
+            return Packet.createErrorResponse(ProtocolAction.GET_DONOR_RESPONSES, requestId,
+                    ResponseStatus.UNAUTHORIZED, "Authentication required");
+        }
+
+        String donorId = client.getAuthenticatedUserId();
+        Map<String, String> map = (databaseService != null)
+                ? databaseService.getDonorResponsesMapForDonor(donorId)
+                : Collections.emptyMap();
+
+        ProtocolPayload resPayload = new ProtocolPayload(map)
+                .set("count", map.size());
+
+        return Packet.createSuccessResponse(ProtocolAction.GET_DONOR_RESPONSES, requestId, resPayload);
+    }
+
+    // =========================================================================
+    // Administrative Operations & Role-based Access Control
+    // =========================================================================
+
+    private boolean checkAdmin(ClientHandler client) {
+        return client.isAuthenticated() && UserRole.ADMIN.equalsIgnoreCase(client.getUserRole());
+    }
+
+    @Override
+    public Packet handleAdminGetUsers(ClientHandler client, String requestId, ProtocolPayload payload) {
+        if (!checkAdmin(client)) {
+            return Packet.createErrorResponse(ProtocolAction.ADMIN_GET_USERS, requestId,
+                    ResponseStatus.FORBIDDEN, "Access denied: Administrator privileges required");
+        }
+
+        String search = payload.get("search");
+        List<Map<String, String>> users = (databaseService != null)
+                ? databaseService.getAllUsers(search)
+                : Collections.emptyList();
+
+        List<String> records = new ArrayList<>();
+        for (Map<String, String> u : users) {
+            records.add(new ProtocolPayload(u).serialize());
+        }
+
+        ProtocolPayload resPayload = new ProtocolPayload()
+                .set("count", records.size())
+                .setList("users", records)
+                .setList("users_list", records);
+
+        return Packet.createSuccessResponse(ProtocolAction.ADMIN_GET_USERS, requestId, resPayload);
+    }
+
+    @Override
+    public Packet handleAdminBlockUser(ClientHandler client, String requestId, ProtocolPayload payload) {
+        if (!checkAdmin(client)) {
+            return Packet.createErrorResponse(ProtocolAction.ADMIN_BLOCK_USER, requestId,
+                    ResponseStatus.FORBIDDEN, "Access denied: Administrator privileges required");
+        }
+
+        String targetUserId = payload.get("userId");
+        if (targetUserId == null || targetUserId.trim().isEmpty()) {
+            return Packet.createErrorResponse(ProtocolAction.ADMIN_BLOCK_USER, requestId,
+                    ResponseStatus.BAD_REQUEST, "Parameter 'userId' is required");
+        }
+
+        boolean ok = (databaseService != null) && databaseService.updateUserAccountStatus(targetUserId.trim(), "BLOCKED");
+        if (!ok) {
+            return Packet.createErrorResponse(ProtocolAction.ADMIN_BLOCK_USER, requestId,
+                    ResponseStatus.BAD_REQUEST, "Failed to block user account " + targetUserId);
+        }
+
+        return Packet.createSuccessResponse(ProtocolAction.ADMIN_BLOCK_USER, requestId,
+                new ProtocolPayload().set("userId", targetUserId).set("status", "BLOCKED").set("message", "User blocked successfully"));
+    }
+
+    @Override
+    public Packet handleAdminUnblockUser(ClientHandler client, String requestId, ProtocolPayload payload) {
+        if (!checkAdmin(client)) {
+            return Packet.createErrorResponse(ProtocolAction.ADMIN_UNBLOCK_USER, requestId,
+                    ResponseStatus.FORBIDDEN, "Access denied: Administrator privileges required");
+        }
+
+        String targetUserId = payload.get("userId");
+        if (targetUserId == null || targetUserId.trim().isEmpty()) {
+            return Packet.createErrorResponse(ProtocolAction.ADMIN_UNBLOCK_USER, requestId,
+                    ResponseStatus.BAD_REQUEST, "Parameter 'userId' is required");
+        }
+
+        boolean ok = (databaseService != null) && databaseService.updateUserAccountStatus(targetUserId.trim(), "ACTIVE");
+        if (!ok) {
+            return Packet.createErrorResponse(ProtocolAction.ADMIN_UNBLOCK_USER, requestId,
+                    ResponseStatus.BAD_REQUEST, "Failed to unblock user account " + targetUserId);
+        }
+
+        return Packet.createSuccessResponse(ProtocolAction.ADMIN_UNBLOCK_USER, requestId,
+                new ProtocolPayload().set("userId", targetUserId).set("status", "ACTIVE").set("message", "User unblocked successfully"));
+    }
+
+    @Override
+    public Packet handleAdminDeleteUser(ClientHandler client, String requestId, ProtocolPayload payload) {
+        if (!checkAdmin(client)) {
+            return Packet.createErrorResponse(ProtocolAction.ADMIN_DELETE_USER, requestId,
+                    ResponseStatus.FORBIDDEN, "Access denied: Administrator privileges required");
+        }
+
+        String targetUserId = payload.get("userId");
+        if (targetUserId == null || targetUserId.trim().isEmpty()) {
+            return Packet.createErrorResponse(ProtocolAction.ADMIN_DELETE_USER, requestId,
+                    ResponseStatus.BAD_REQUEST, "Parameter 'userId' is required");
+        }
+
+        boolean ok = (databaseService != null) && databaseService.deleteUserAccount(targetUserId.trim());
+        if (!ok) {
+            return Packet.createErrorResponse(ProtocolAction.ADMIN_DELETE_USER, requestId,
+                    ResponseStatus.BAD_REQUEST, "Failed to delete user account " + targetUserId);
+        }
+
+        return Packet.createSuccessResponse(ProtocolAction.ADMIN_DELETE_USER, requestId,
+                new ProtocolPayload().set("userId", targetUserId).set("message", "User deleted successfully"));
+    }
+
+    @Override
+    public Packet handleAdminCancelRequest(ClientHandler client, String requestId, ProtocolPayload payload) {
+        if (!checkAdmin(client)) {
+            return Packet.createErrorResponse(ProtocolAction.ADMIN_CANCEL_REQUEST, requestId,
+                    ResponseStatus.FORBIDDEN, "Access denied: Administrator privileges required");
+        }
+
+        String bloodRequestId = payload.get("bloodRequestId");
+        if (bloodRequestId == null || bloodRequestId.trim().isEmpty()) {
+            bloodRequestId = payload.get("requestId");
+        }
+        if (bloodRequestId == null || bloodRequestId.trim().isEmpty()) {
+            return Packet.createErrorResponse(ProtocolAction.ADMIN_CANCEL_REQUEST, requestId,
+                    ResponseStatus.BAD_REQUEST, "Parameter 'bloodRequestId' is required");
+        }
+
+        boolean ok = (databaseService != null) && databaseService.updateBloodRequestStatus(bloodRequestId.trim(), "CANCELLED");
+        if (!ok) {
+            return Packet.createErrorResponse(ProtocolAction.ADMIN_CANCEL_REQUEST, requestId,
+                    ResponseStatus.BAD_REQUEST, "Failed to cancel blood request " + bloodRequestId);
+        }
+
+        return Packet.createSuccessResponse(ProtocolAction.ADMIN_CANCEL_REQUEST, requestId,
+                new ProtocolPayload().set("bloodRequestId", bloodRequestId).set("status", "CANCELLED").set("message", "Blood request cancelled successfully"));
+    }
+
+    @Override
+    public Packet handleAdminGetStats(ClientHandler client, String requestId, ProtocolPayload payload) {
+        if (!checkAdmin(client)) {
+            return Packet.createErrorResponse(ProtocolAction.ADMIN_GET_STATS, requestId,
+                    ResponseStatus.FORBIDDEN, "Access denied: Administrator privileges required");
+        }
+
+        Map<String, String> stats = (databaseService != null)
+                ? databaseService.getSystemStatistics()
+                : Collections.emptyMap();
+
+        return Packet.createSuccessResponse(ProtocolAction.ADMIN_GET_STATS, requestId, new ProtocolPayload(stats));
     }
 }

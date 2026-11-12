@@ -99,4 +99,53 @@ public interface IDatabaseService {
      * Fetches persisted notifications for a user.
      */
     List<Map<String, String>> getNotificationsForUser(String userId, int limit);
+
+    // --- Donor Response Operations ---
+
+    /**
+     * Records or updates a donor response (ACCEPTED, REJECTED, PENDING) for a blood request.
+     */
+    Map<String, String> recordDonorResponse(String requestId, String donorId, String status, String notes);
+
+    /**
+     * Retrieves all donor responses for a specific blood request.
+     */
+    List<Map<String, String>> getDonorResponsesForRequest(String requestId);
+
+    /**
+     * Retrieves all donor responses for all requests created by a recipient.
+     */
+    List<Map<String, String>> getDonorResponsesForRecipient(String recipientId);
+
+    /**
+     * Retrieves the response of a specific donor for a request.
+     */
+    Map<String, String> getDonorResponse(String requestId, String donorId);
+
+    /**
+     * Returns a map of requestId -> status for all responses made by this donor.
+     */
+    Map<String, String> getDonorResponsesMapForDonor(String donorId);
+
+    // --- Admin Operations ---
+
+    /**
+     * Retrieves all users optionally matching search query.
+     */
+    List<Map<String, String>> getAllUsers(String searchQuery);
+
+    /**
+     * Updates account status of a user (ACTIVE or BLOCKED).
+     */
+    boolean updateUserAccountStatus(String userId, String status);
+
+    /**
+     * Deletes a user account.
+     */
+    boolean deleteUserAccount(String userId);
+
+    /**
+     * Returns aggregated system statistics for Admin dashboard.
+     */
+    Map<String, String> getSystemStatistics();
 }

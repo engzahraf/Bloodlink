@@ -220,4 +220,59 @@ public class MockDatabaseService implements IDatabaseService {
             return new ArrayList<>(list);
         }
     }
+
+    @Override
+    public Map<String, String> recordDonorResponse(String requestId, String donorId, String status, String notes) {
+        Map<String, String> resp = new HashMap<>();
+        resp.put("responseId", "resp_1");
+        resp.put("requestId", requestId);
+        resp.put("donorId", donorId);
+        resp.put("status", status);
+        resp.put("notes", notes != null ? notes : "");
+        resp.put("createdAt", String.valueOf(System.currentTimeMillis()));
+        return resp;
+    }
+
+    @Override
+    public List<Map<String, String>> getDonorResponsesForRequest(String requestId) {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public List<Map<String, String>> getDonorResponsesForRecipient(String recipientId) {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public Map<String, String> getDonorResponse(String requestId, String donorId) {
+        return null;
+    }
+
+    @Override
+    public Map<String, String> getDonorResponsesMapForDonor(String donorId) {
+        return Collections.emptyMap();
+    }
+
+    @Override
+    public List<Map<String, String>> getAllUsers(String searchQuery) {
+        return new ArrayList<>(usersById.values());
+    }
+
+    @Override
+    public boolean updateUserAccountStatus(String userId, String status) {
+        return true;
+    }
+
+    @Override
+    public boolean deleteUserAccount(String userId) {
+        return true;
+    }
+
+    @Override
+    public Map<String, String> getSystemStatistics() {
+        Map<String, String> stats = new HashMap<>();
+        stats.put("totalUsers", String.valueOf(usersById.size()));
+        stats.put("totalRequests", String.valueOf(bloodRequestsById.size()));
+        return stats;
+    }
 }

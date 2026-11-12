@@ -158,7 +158,8 @@ public class NotificationService implements INotificationService {
 
         ProtocolPayload resPayload = new ProtocolPayload()
                 .set("count", records.size())
-                .setList("notifications", records);
+                .setList("notifications", records)
+                .setList("notifications_list", records);
 
         return Packet.createSuccessResponse(ProtocolAction.GET_NOTIFICATIONS, requestId, resPayload);
     }

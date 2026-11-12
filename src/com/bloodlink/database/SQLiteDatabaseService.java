@@ -3,9 +3,11 @@ package com.bloodlink.database;
 import com.bloodlink.database.dao.BloodRequestDAO;
 import com.bloodlink.database.dao.DonationDAO;
 import com.bloodlink.database.dao.DonorProfileDAO;
+import com.bloodlink.database.dao.DonorResponseDAO;
 import com.bloodlink.database.dao.MessageDAO;
 import com.bloodlink.database.dao.NotificationDAO;
 import com.bloodlink.database.dao.UserDAO;
+import com.bloodlink.database.enums.AccountStatus;
 import com.bloodlink.database.enums.AvailabilityStatus;
 import com.bloodlink.database.enums.BloodGroup;
 import com.bloodlink.database.enums.NotificationType;
@@ -16,6 +18,7 @@ import com.bloodlink.database.exceptions.DatabaseException;
 import com.bloodlink.database.exceptions.ValidationException;
 import com.bloodlink.database.models.BloodRequest;
 import com.bloodlink.database.models.DonorProfile;
+import com.bloodlink.database.models.DonorResponse;
 import com.bloodlink.database.models.Message;
 import com.bloodlink.database.models.Notification;
 import com.bloodlink.database.models.User;
@@ -42,20 +45,28 @@ public class SQLiteDatabaseService implements IDatabaseService {
     private final DonationDAO donationDAO;
     private final NotificationDAO notificationDAO;
     private final MessageDAO messageDAO;
+    private final DonorResponseDAO responseDAO;
 
     public SQLiteDatabaseService() {
         this(new UserDAO(), new DonorProfileDAO(), new BloodRequestDAO(),
-             new DonationDAO(), new NotificationDAO(), new MessageDAO());
+             new DonationDAO(), new NotificationDAO(), new MessageDAO(), new DonorResponseDAO());
     }
 
     public SQLiteDatabaseService(UserDAO userDAO, DonorProfileDAO donorDAO, BloodRequestDAO requestDAO,
                                  DonationDAO donationDAO, NotificationDAO notificationDAO, MessageDAO messageDAO) {
+        this(userDAO, donorDAO, requestDAO, donationDAO, notificationDAO, messageDAO, new DonorResponseDAO());
+    }
+
+    public SQLiteDatabaseService(UserDAO userDAO, DonorProfileDAO donorDAO, BloodRequestDAO requestDAO,
+                                 DonationDAO donationDAO, NotificationDAO notificationDAO, MessageDAO messageDAO,
+                                 DonorResponseDAO responseDAO) {
         this.userDAO = userDAO;
         this.donorDAO = donorDAO;
         this.requestDAO = requestDAO;
         this.donationDAO = donationDAO;
         this.notificationDAO = notificationDAO;
         this.messageDAO = messageDAO;
+        this.responseDAO = responseDAO;
     }
 
     // =========================================================================
@@ -274,6 +285,11 @@ public class SQLiteDatabaseService implements IDatabaseService {
     public List<Map<String, String>> getBloodRequests(Map<String, String> filters) {
         try {
             List<BloodRequest> allRequests = requestDAO.getAllBloodRequests();
+            Map<Integer, Integer> responseCounts = Collections.emptyMap();
+            try {
+                responseCounts = responseDAO.getResponseCountsByRequest();
+            } catch (Exception ignored) {}
+
             List<Map<String, String>> results = new ArrayList<>();
 
             for (BloodRequest req : allRequests) {
@@ -283,6 +299,9 @@ public class SQLiteDatabaseService implements IDatabaseService {
                     row.put("requestId", String.valueOf(req.getRequestId()));
                     row.put("requesterId", String.valueOf(req.getRecipientId()));
                     row.put("recipientId", String.valueOf(req.getRecipientId()));
+                    row.put("recipientName", req.getRecipientName() != null ? req.getRecipientName() : "");
+                    row.put("recipientEmail", req.getRecipientEmail() != null ? req.getRecipientEmail() : "");
+                    row.put("contactNumber", req.getContactNumber() != null ? req.getContactNumber() : "");
                     row.put("bloodGroup", toBackendBloodGroup(req.getBloodGroup()));
                     row.put("bloodGroupSymbol", req.getBloodGroup().getSymbol());
                     row.put("unitsNeeded", String.valueOf(req.getUnitsRequired()));
@@ -292,6 +311,9 @@ public class SQLiteDatabaseService implements IDatabaseService {
                     row.put("status", toBackendStatus(req.getRequestStatus()));
                     row.put("notes", req.getDescription() != null ? req.getDescription() : "");
                     row.put("createdAt", req.getCreatedAt() != null ? req.getCreatedAt() : "");
+                    int respCount = responseCounts.getOrDefault(req.getRequestId(), 0);
+                    row.put("responsesCount", String.valueOf(respCount));
+                    row.put("responseCount", String.valueOf(respCount));
                     results.add(row);
                 }
             }
@@ -610,6 +632,7 @@ public class SQLiteDatabaseService implements IDatabaseService {
                 return RequestStatus.CANCELLED;
             case "REJECTED":
                 return RequestStatus.REJECTED;
+            case "OPEN":
             case "PENDING":
             default:
                 return RequestStatus.PENDING;
@@ -687,10 +710,12 @@ public class SQLiteDatabaseService implements IDatabaseService {
         }
 
         if (filters.containsKey("status")) {
-            String filterStatus = filters.get("status").trim();
-            RequestStatus expected = toDbRequestStatus(filterStatus);
-            if (req.getRequestStatus() != expected) {
-                return false;
+            String filterStatus = filters.get("status") != null ? filters.get("status").trim() : "";
+            if (!filterStatus.isEmpty()) {
+                RequestStatus expected = toDbRequestStatus(filterStatus);
+                if (req.getRequestStatus() != expected) {
+                    return false;
+                }
             }
         }
 
@@ -712,12 +737,239 @@ public class SQLiteDatabaseService implements IDatabaseService {
         }
 
         if (filters.containsKey("bloodGroup")) {
-            BloodGroup expectedBg = toDbBloodGroup(filters.get("bloodGroup"));
-            if (expectedBg != null && req.getBloodGroup() != expectedBg) {
-                return false;
+            String bgStr = filters.get("bloodGroup") != null ? filters.get("bloodGroup").trim() : "";
+            if (!bgStr.isEmpty()) {
+                BloodGroup expectedBg = toDbBloodGroup(bgStr);
+                if (expectedBg != null && req.getBloodGroup() != expectedBg) {
+                    return false;
+                }
             }
         }
 
         return true;
+    }
+
+    // =========================================================================
+    // 6. Donor Response Operations
+    // =========================================================================
+
+    @Override
+    public Map<String, String> recordDonorResponse(String requestId, String donorId, String status, String notes) {
+        int reqId = parseId(requestId);
+        int donId = parseId(donorId);
+        if (reqId <= 0 || donId <= 0) return null;
+
+        try {
+            BloodRequest req = requestDAO.getRequestById(reqId);
+            if (req == null) return null;
+
+            int recipientId = req.getRecipientId();
+            DonorResponse dr = responseDAO.recordResponse(reqId, donId, recipientId, status, notes);
+            if (dr == null) return null;
+
+            // If ACCEPTED, advance blood request status if still PENDING or MATCHED
+            if ("ACCEPTED".equalsIgnoreCase(status)) {
+                if (req.getRequestStatus() == RequestStatus.PENDING || req.getRequestStatus() == RequestStatus.MATCHED) {
+                    requestDAO.updateRequestStatus(reqId, RequestStatus.ACCEPTED);
+                }
+            }
+
+            return mapDonorResponseToRow(dr);
+        } catch (Exception e) {
+            ServerLogger.error("Error recording donor response: " + e.getMessage(), e);
+            return null;
+        }
+    }
+
+    @Override
+    public List<Map<String, String>> getDonorResponsesForRequest(String requestId) {
+        int reqId = parseId(requestId);
+        if (reqId <= 0) return Collections.emptyList();
+        try {
+            List<DonorResponse> list = responseDAO.getResponsesByRequest(reqId);
+            List<Map<String, String>> results = new ArrayList<>();
+            for (DonorResponse dr : list) {
+                results.add(mapDonorResponseToRow(dr));
+            }
+            return results;
+        } catch (Exception e) {
+            ServerLogger.error("Error getting donor responses for request: " + e.getMessage(), e);
+            return Collections.emptyList();
+        }
+    }
+
+    @Override
+    public List<Map<String, String>> getDonorResponsesForRecipient(String recipientId) {
+        int recId = parseId(recipientId);
+        if (recId <= 0) return Collections.emptyList();
+        try {
+            List<DonorResponse> list = responseDAO.getResponsesByRecipient(recId);
+            List<Map<String, String>> results = new ArrayList<>();
+            for (DonorResponse dr : list) {
+                results.add(mapDonorResponseToRow(dr));
+            }
+            return results;
+        } catch (Exception e) {
+            ServerLogger.error("Error getting donor responses for recipient: " + e.getMessage(), e);
+            return Collections.emptyList();
+        }
+    }
+
+    @Override
+    public Map<String, String> getDonorResponse(String requestId, String donorId) {
+        int reqId = parseId(requestId);
+        int donId = parseId(donorId);
+        if (reqId <= 0 || donId <= 0) return null;
+        try {
+            DonorResponse dr = responseDAO.getResponse(reqId, donId);
+            return dr != null ? mapDonorResponseToRow(dr) : null;
+        } catch (Exception e) {
+            ServerLogger.error("Error getting donor response: " + e.getMessage(), e);
+            return null;
+        }
+    }
+
+    @Override
+    public Map<String, String> getDonorResponsesMapForDonor(String donorId) {
+        int donId = parseId(donorId);
+        if (donId <= 0) return Collections.emptyMap();
+        try {
+            Map<Integer, String> raw = responseDAO.getDonorResponsesMapForDonor(donId);
+            Map<String, String> res = new HashMap<>();
+            for (Map.Entry<Integer, String> e : raw.entrySet()) {
+                res.put(String.valueOf(e.getKey()), e.getValue());
+            }
+            return res;
+        } catch (Exception e) {
+            ServerLogger.error("Error getting responses map for donor: " + e.getMessage(), e);
+            return Collections.emptyMap();
+        }
+    }
+
+    // =========================================================================
+    // 7. Admin Operations & Statistics
+    // =========================================================================
+
+    @Override
+    public List<Map<String, String>> getAllUsers(String searchQuery) {
+        try {
+            List<User> list = (searchQuery != null && !searchQuery.trim().isEmpty())
+                    ? userDAO.searchUsers(searchQuery.trim())
+                    : userDAO.getAllUsers();
+            List<Map<String, String>> results = new ArrayList<>();
+            for (User u : list) {
+                Map<String, String> row = new HashMap<>();
+                row.put("userId", String.valueOf(u.getUserId()));
+                row.put("username", u.getEmail());
+                row.put("fullName", u.getFullName());
+                row.put("email", u.getEmail());
+                row.put("phone", u.getPhone() != null ? u.getPhone() : "");
+                row.put("role", u.getRole() != null ? u.getRole().name() : "DONOR");
+                row.put("accountStatus", u.getAccountStatus() != null ? u.getAccountStatus().name() : "ACTIVE");
+                row.put("status", u.getAccountStatus() != null ? u.getAccountStatus().name() : "ACTIVE");
+                row.put("createdAt", u.getCreatedAt() != null ? u.getCreatedAt() : "");
+
+                if (u.getRole() == UserRole.DONOR) {
+                    DonorProfile dp = donorDAO.getDonorByUserId(u.getUserId());
+                    if (dp != null) {
+                        row.put("bloodGroup", toBackendBloodGroup(dp.getBloodGroup()));
+                        row.put("bloodGroupSymbol", dp.getBloodGroup() != null ? dp.getBloodGroup().getSymbol() : "");
+                        row.put("city", dp.getLocation() != null ? dp.getLocation() : "");
+                        row.put("location", dp.getLocation() != null ? dp.getLocation() : "");
+                        row.put("availability", dp.getAvailabilityStatus() != null ? dp.getAvailabilityStatus().name() : "AVAILABLE");
+                        row.put("isAvailable", String.valueOf(dp.getAvailabilityStatus() == AvailabilityStatus.AVAILABLE));
+                        row.put("lastDonationDate", dp.getLastDonationDate() != null ? dp.getLastDonationDate() : "Never");
+                    }
+                }
+                results.add(row);
+            }
+            return results;
+        } catch (Exception e) {
+            ServerLogger.error("Error retrieving all users: " + e.getMessage(), e);
+            return Collections.emptyList();
+        }
+    }
+
+    @Override
+    public boolean updateUserAccountStatus(String userId, String status) {
+        int uId = parseId(userId);
+        if (uId <= 0 || status == null) return false;
+        try {
+            AccountStatus as = AccountStatus.fromString(status);
+            return userDAO.updateAccountStatus(uId, as);
+        } catch (Exception e) {
+            ServerLogger.error("Failed to update user account status: " + e.getMessage(), e);
+            return false;
+        }
+    }
+
+    @Override
+    public boolean deleteUserAccount(String userId) {
+        int uId = parseId(userId);
+        if (uId <= 0) return false;
+        try {
+            return userDAO.deleteUser(uId);
+        } catch (Exception e) {
+            ServerLogger.error("Failed to delete user account: " + e.getMessage(), e);
+            return false;
+        }
+    }
+
+    @Override
+    public Map<String, String> getSystemStatistics() {
+        Map<String, String> result = new HashMap<>();
+        try {
+            Map<String, Integer> userStats = userDAO.getUserStatistics();
+            Map<String, Integer> reqStats = requestDAO.getRequestStatistics();
+            Map<String, Integer> bgStats = requestDAO.getBloodGroupCounts();
+
+            if (userStats != null) {
+                for (Map.Entry<String, Integer> e : userStats.entrySet()) {
+                    result.put(e.getKey(), String.valueOf(e.getValue()));
+                }
+            }
+            if (reqStats != null) {
+                for (Map.Entry<String, Integer> e : reqStats.entrySet()) {
+                    result.put(e.getKey(), String.valueOf(e.getValue()));
+                }
+            }
+            if (bgStats != null) {
+                for (Map.Entry<String, Integer> e : bgStats.entrySet()) {
+                    String bgName = e.getKey();
+                    result.put("bg_" + bgName, String.valueOf(e.getValue()));
+                    String sym = BloodCompatibility.toSymbol(bgName);
+                    if (!sym.isEmpty()) {
+                        result.put("bgSymbol_" + sym, String.valueOf(e.getValue()));
+                    }
+                }
+            }
+        } catch (Exception e) {
+            ServerLogger.error("Failed to fetch system statistics: " + e.getMessage(), e);
+        }
+        return result;
+    }
+
+    private Map<String, String> mapDonorResponseToRow(DonorResponse dr) {
+        Map<String, String> row = new HashMap<>();
+        row.put("responseId", String.valueOf(dr.getResponseId()));
+        row.put("requestId", String.valueOf(dr.getRequestId()));
+        row.put("bloodRequestId", String.valueOf(dr.getRequestId()));
+        row.put("donorId", String.valueOf(dr.getDonorId()));
+        row.put("recipientId", String.valueOf(dr.getRecipientId()));
+        row.put("status", dr.getStatus());
+        row.put("responseStatus", dr.getStatus());
+        row.put("donorName", dr.getDonorName() != null ? dr.getDonorName() : "Donor");
+        row.put("donorEmail", dr.getDonorEmail() != null ? dr.getDonorEmail() : "");
+        row.put("donorPhone", dr.getDonorPhone() != null ? dr.getDonorPhone() : "");
+        row.put("bloodGroup", dr.getDonorBloodGroup() != null ? BloodCompatibility.normalize(dr.getDonorBloodGroup()) : "");
+        row.put("bloodGroupSymbol", dr.getDonorBloodGroup() != null ? BloodCompatibility.toSymbol(dr.getDonorBloodGroup()) : "");
+        row.put("donorLocation", dr.getDonorLocation() != null ? dr.getDonorLocation() : "");
+        row.put("donorCity", dr.getDonorLocation() != null ? dr.getDonorLocation() : "");
+        row.put("donorAvailability", dr.getDonorAvailability() != null ? dr.getDonorAvailability() : "AVAILABLE");
+        row.put("lastDonationDate", dr.getLastDonationDate() != null ? dr.getLastDonationDate() : "Never");
+        row.put("hospitalName", dr.getHospitalName() != null ? dr.getHospitalName() : "");
+        row.put("notes", dr.getNotes() != null ? dr.getNotes() : "");
+        row.put("createdAt", dr.getCreatedAt() != null ? dr.getCreatedAt() : "");
+        return row;
     }
 }

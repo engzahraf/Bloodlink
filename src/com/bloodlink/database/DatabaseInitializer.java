@@ -117,6 +117,21 @@ public final class DatabaseInitializer {
                 ");"
             );
 
+            // 7. donor_responses table
+            stmt.execute(
+                "CREATE TABLE IF NOT EXISTS donor_responses (" +
+                "    response_id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                "    request_id INTEGER NOT NULL REFERENCES blood_requests(request_id) ON DELETE CASCADE ON UPDATE CASCADE," +
+                "    donor_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE ON UPDATE CASCADE," +
+                "    recipient_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE ON UPDATE CASCADE," +
+                "    status TEXT NOT NULL CHECK(status IN ('ACCEPTED', 'REJECTED', 'PENDING'))," +
+                "    notes TEXT," +
+                "    created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))," +
+                "    updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))," +
+                "    UNIQUE(request_id, donor_id)" +
+                ");"
+            );
+
             // Create Indexes for high-frequency search and join operations
             stmt.execute("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);");
             stmt.execute("CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);");
@@ -132,6 +147,9 @@ public final class DatabaseInitializer {
             stmt.execute("CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, is_read);");
             stmt.execute("CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(sender_id, receiver_id);");
             stmt.execute("CREATE INDEX IF NOT EXISTS idx_messages_request ON messages(request_id);");
+            stmt.execute("CREATE INDEX IF NOT EXISTS idx_responses_request ON donor_responses(request_id);");
+            stmt.execute("CREATE INDEX IF NOT EXISTS idx_responses_donor ON donor_responses(donor_id);");
+            stmt.execute("CREATE INDEX IF NOT EXISTS idx_responses_recipient ON donor_responses(recipient_id);");
 
             conn.commit();
             System.out.println("[DatabaseInitializer] Database schema and indexes initialized successfully.");

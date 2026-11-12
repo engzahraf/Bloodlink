@@ -18,4 +18,25 @@ public interface IBloodMatchingService {
     Packet handleUpdateBloodRequestStatus(ClientHandler client, String requestId, ProtocolPayload payload);
 
     Packet handleUpdateDonorAvailability(ClientHandler client, String requestId, ProtocolPayload payload);
+
+    Packet handleAcceptRequest(ClientHandler client, String requestId, ProtocolPayload payload);
+
+    Packet handleRejectRequest(ClientHandler client, String requestId, ProtocolPayload payload);
+
+    Packet handleGetRequestResponses(ClientHandler client, String requestId, ProtocolPayload payload);
+
+    Packet handleGetDonorResponses(ClientHandler client, String requestId, ProtocolPayload payload);
+
+    // Admin Operations
+    Packet handleAdminGetUsers(ClientHandler client, String requestId, ProtocolPayload payload);
+
+    Packet handleAdminBlockUser(ClientHandler client, String requestId, ProtocolPayload payload);
+
+    Packet handleAdminUnblockUser(ClientHandler client, String requestId, ProtocolPayload payload);
+
+    Packet handleAdminDeleteUser(ClientHandler client, String requestId, ProtocolPayload payload);
+
+    Packet handleAdminCancelRequest(ClientHandler client, String requestId, ProtocolPayload payload);
+
+    Packet handleAdminGetStats(ClientHandler client, String requestId, ProtocolPayload payload);
 }

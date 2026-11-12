@@ -111,11 +111,20 @@ public class MessagingService implements IMessagingService {
 
         String currentUserId = client.getAuthenticatedUserId();
         String otherUserId = payload.get("otherUserId");
+        if (otherUserId == null || otherUserId.trim().isEmpty()) {
+            otherUserId = payload.get("contactUserId");
+        }
+        if (otherUserId == null || otherUserId.trim().isEmpty()) {
+            otherUserId = payload.get("recipientId");
+        }
+        if (otherUserId == null || otherUserId.trim().isEmpty()) {
+            otherUserId = payload.get("userId");
+        }
         int limit = payload.getInt("limit", 50);
 
         if (otherUserId == null || otherUserId.trim().isEmpty()) {
             return Packet.createErrorResponse(ProtocolAction.GET_MESSAGES, requestId,
-                    ResponseStatus.BAD_REQUEST, "Parameter 'otherUserId' is required");
+                    ResponseStatus.BAD_REQUEST, "Parameter 'otherUserId' or 'contactUserId' is required");
         }
 
         String trimmedOtherUser = otherUserId.trim();
@@ -136,7 +145,8 @@ public class MessagingService implements IMessagingService {
         ProtocolPayload resPayload = new ProtocolPayload()
                 .set("count", encodedMessages.size())
                 .set("withUserId", trimmedOtherUser)
-                .setList("messages", encodedMessages);
+                .setList("messages", encodedMessages)
+                .setList("messages_list", encodedMessages);
 
         return Packet.createSuccessResponse(ProtocolAction.GET_MESSAGES, requestId, resPayload);
     }

@@ -340,6 +340,24 @@ public class BloodRequestDAO {
         }
     }
 
+    /**
+     * Retrieves counts of blood requests aggregated by blood group.
+     */
+    public Map<String, Integer> getBloodGroupCounts() {
+        Map<String, Integer> counts = new HashMap<>();
+        String sql = "SELECT blood_group, COUNT(*) as cnt FROM blood_requests GROUP BY blood_group";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql);
+             ResultSet rs = stmt.executeQuery()) {
+            while (rs.next()) {
+                counts.put(rs.getString("blood_group"), rs.getInt("cnt"));
+            }
+            return counts;
+        } catch (SQLException e) {
+            throw new DatabaseException("Error retrieving blood group counts: " + e.getMessage(), e);
+        }
+    }
+
     private BloodRequest mapRowToBloodRequest(ResultSet rs) throws SQLException {
         BloodRequest req = new BloodRequest(
             rs.getInt("request_id"),

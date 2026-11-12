@@ -107,6 +107,72 @@ public class RequestDispatcher {
                     : serviceUnavailableResponse(action, requestId);
         }
 
+        // Donor Responses
+        if (ProtocolAction.ACCEPT_REQUEST.equalsIgnoreCase(action)) {
+            return (bloodMatchingService != null)
+                    ? bloodMatchingService.handleAcceptRequest(client, requestId, payload)
+                    : serviceUnavailableResponse(action, requestId);
+        }
+        if (ProtocolAction.REJECT_REQUEST.equalsIgnoreCase(action)) {
+            return (bloodMatchingService != null)
+                    ? bloodMatchingService.handleRejectRequest(client, requestId, payload)
+                    : serviceUnavailableResponse(action, requestId);
+        }
+        if (ProtocolAction.RESPOND_TO_REQUEST.equalsIgnoreCase(action)) {
+            String decision = payload.getOrDefault("status", "ACCEPTED");
+            if ("REJECTED".equalsIgnoreCase(decision)) {
+                return (bloodMatchingService != null)
+                        ? bloodMatchingService.handleRejectRequest(client, requestId, payload)
+                        : serviceUnavailableResponse(action, requestId);
+            } else {
+                return (bloodMatchingService != null)
+                        ? bloodMatchingService.handleAcceptRequest(client, requestId, payload)
+                        : serviceUnavailableResponse(action, requestId);
+            }
+        }
+        if (ProtocolAction.GET_REQUEST_RESPONSES.equalsIgnoreCase(action)) {
+            return (bloodMatchingService != null)
+                    ? bloodMatchingService.handleGetRequestResponses(client, requestId, payload)
+                    : serviceUnavailableResponse(action, requestId);
+        }
+        if (ProtocolAction.GET_DONOR_RESPONSES.equalsIgnoreCase(action)) {
+            return (bloodMatchingService != null)
+                    ? bloodMatchingService.handleGetDonorResponses(client, requestId, payload)
+                    : serviceUnavailableResponse(action, requestId);
+        }
+
+        // Admin Operations
+        if (ProtocolAction.ADMIN_GET_USERS.equalsIgnoreCase(action)) {
+            return (bloodMatchingService != null)
+                    ? bloodMatchingService.handleAdminGetUsers(client, requestId, payload)
+                    : serviceUnavailableResponse(action, requestId);
+        }
+        if (ProtocolAction.ADMIN_BLOCK_USER.equalsIgnoreCase(action)) {
+            return (bloodMatchingService != null)
+                    ? bloodMatchingService.handleAdminBlockUser(client, requestId, payload)
+                    : serviceUnavailableResponse(action, requestId);
+        }
+        if (ProtocolAction.ADMIN_UNBLOCK_USER.equalsIgnoreCase(action)) {
+            return (bloodMatchingService != null)
+                    ? bloodMatchingService.handleAdminUnblockUser(client, requestId, payload)
+                    : serviceUnavailableResponse(action, requestId);
+        }
+        if (ProtocolAction.ADMIN_DELETE_USER.equalsIgnoreCase(action)) {
+            return (bloodMatchingService != null)
+                    ? bloodMatchingService.handleAdminDeleteUser(client, requestId, payload)
+                    : serviceUnavailableResponse(action, requestId);
+        }
+        if (ProtocolAction.ADMIN_CANCEL_REQUEST.equalsIgnoreCase(action)) {
+            return (bloodMatchingService != null)
+                    ? bloodMatchingService.handleAdminCancelRequest(client, requestId, payload)
+                    : serviceUnavailableResponse(action, requestId);
+        }
+        if (ProtocolAction.ADMIN_GET_STATS.equalsIgnoreCase(action)) {
+            return (bloodMatchingService != null)
+                    ? bloodMatchingService.handleAdminGetStats(client, requestId, payload)
+                    : serviceUnavailableResponse(action, requestId);
+        }
+
         // Notifications
         if (ProtocolAction.GET_NOTIFICATIONS.equalsIgnoreCase(action)) {
             return (notificationService != null)
