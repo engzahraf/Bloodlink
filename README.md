@@ -8,9 +8,9 @@ BloodLink is a distributed, multi-tier client-server application designed for em
 
 The system is built as a collaborative multi-tier Java application:
 
-* **Member 01 – Frontend Developer:** Java Swing client interface, user interactions, responsive UI on the Event Dispatch Thread (EDT).
-* **Member 02 – Networking & Backend Developer:** Multithreaded TCP Server (`ServerSocket`), non-blocking client connection pool (`ExecutorService`), custom delimiter-safe wire protocol (`readUTF()` / `writeUTF()`), business logic services (Authentication, ABO/Rh Matching, Push Notifications, Direct Messaging), and SQLite adapter (`SQLiteDatabaseService`).
-* **Member 03 – Database Developer:** Relational SQLite schema, JDBC connectivity (`DatabaseConnection`), Data Access Objects (`UserDAO`, `DonorProfileDAO`, `BloodRequestDAO`, `DonationDAO`, `NotificationDAO`, `MessageDAO`), domain models, PBKDF2 password hashing (`PasswordHasher`), and database integrity rules.
+* **IMTHATH R.M. – Frontend Developer:** Java Swing client interface, user interactions, responsive UI on the Event Dispatch Thread (EDT).
+* **SAHRIN M.M.M – Networking & Backend Developer:** Multithreaded TCP Server (`ServerSocket`), non-blocking client connection pool (`ExecutorService`), custom delimiter-safe wire protocol (`readUTF()` / `writeUTF()`), business logic services (Authentication, ABO/Rh Matching, Push Notifications, Direct Messaging), and SQLite adapter (`SQLiteDatabaseService`).
+* **ZAHRAF M.N.M. – Database Developer:** Relational SQLite schema, JDBC connectivity (`DatabaseConnection`), Data Access Objects (`UserDAO`, `DonorProfileDAO`, `BloodRequestDAO`, `DonationDAO`, `NotificationDAO`, `MessageDAO`), domain models, PBKDF2 password hashing (`PasswordHasher`), and database integrity rules.
 
 ---
 
